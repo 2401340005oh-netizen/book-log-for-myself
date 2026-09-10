@@ -403,45 +403,68 @@
             }
         });
 
-        // 検索処理 (API)
+        // 検索処理 (API改善版：画像取得のフォールバック強化)
         async function searchBookByISBN(isbn) {
             document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">検索中...</p>';
             try {
-                // 1. openBD (日本の書籍に強い)
-                let res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
-                let data = await res.json();
-                if(data && data[0]) {
-                    const summary = data[0].summary;
-                    showSearchResults([{
-                        isbn: summary.isbn,
-                        title: summary.title,
-                        author: summary.author,
-                        publisher: summary.publisher,
-                        publishedDate: summary.pubdate,
-                        coverUrl: summary.cover
-                    }]);
-                    return;
+                let bookData = null;
+
+                // 1. openBD で検索
+                try {
+                    const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
+                    const data = await res.json();
+                    if (data && data[0] && data[0].summary) {
+                        const s = data[0].summary;
+                        bookData = {
+                            isbn: s.isbn || isbn,
+                            title: s.title || '',
+                            author: s.author || '',
+                            publisher: s.publisher || '',
+                            publishedDate: s.pubdate || '',
+                            coverUrl: s.cover || ''
+                        };
+                    }
+                } catch (e) { console.log('openBD fetch error', e); }
+
+                // 2. Google Books で検索 (openBDで見つからない、または表紙画像がない場合の補完)
+                if (!bookData || !bookData.coverUrl) {
+                    try {
+                        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+                        const data = await res.json();
+                        if (data.items && data.items.length > 0) {
+                            const info = data.items[0].volumeInfo;
+                            let gCover = '';
+                            if (info.imageLinks) {
+                                // 必ず https に変換し、curl画像パラメータを調整
+                                gCover = (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail || '')
+                                    .replace(/^http:\/\//i, 'https://');
+                            }
+                            if (!bookData) {
+                                bookData = {
+                                    isbn: isbn,
+                                    title: info.title || 'タイトル不明',
+                                    author: info.authors ? info.authors.join(', ') : '',
+                                    publisher: info.publisher || '',
+                                    publishedDate: info.publishedDate || '',
+                                    coverUrl: gCover
+                                };
+                            } else if (!bookData.coverUrl && gCover) {
+                                bookData.coverUrl = gCover; // openBDのデータに画像だけ補完
+                            }
+                        }
+                    } catch (e) { console.log('Google Books fetch error', e); }
                 }
-                // 2. Google Books フォールバック
-                res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-                data = await res.json();
-                if(data.items && data.items.length > 0) {
-                    const info = data.items[0].volumeInfo;
-                    showSearchResults([{
-                        isbn: isbn,
-                        title: info.title,
-                        author: info.authors ? info.authors.join(', ') : '',
-                        publisher: info.publisher || '',
-                        publishedDate: info.publishedDate || '',
-                        coverUrl: info.imageLinks ? info.imageLinks.thumbnail.replace('http:', 'https:') : ''
-                    }]);
-                    return;
+
+                if (bookData) {
+                    showSearchResults([bookData]);
+                } else {
+                    document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">書籍情報が見つかりませんでした。</p>';
                 }
-                document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
             } catch (e) {
                 document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">通信エラーが発生しました。</p>';
             }
         }
+      
 
         async function searchBookByKeyword(keyword) {
             document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">検索中...</p>';
