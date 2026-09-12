@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- Google Booksの画像ブロック対策 (Referrerを送信しない) -->
+    <!-- 画像ブロック対策 -->
     <meta name="referrer" content="no-referrer">
     <title>My読書記録</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Dexie.js (IndexedDB Wrapper) -->
+    <!-- Dexie.js (IndexedDB) -->
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
-    <!-- html5-qrcode (Barcode Scanner) -->
+    <!-- html5-qrcode (Barcode) -->
     <script src="https://unpkg.com/html5-qrcode"></script>
 
     <style>
@@ -51,13 +51,10 @@
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans selection:bg-blue-200">
 
-    <!-- ヘッダー -->
     <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-10 flex justify-between items-center">
         <h1 class="text-xl font-bold" id="header-title">本棚</h1>
-        <div id="header-actions"></div>
     </header>
 
-    <!-- メインビュー -->
     <main class="relative h-full">
 
         <!-- 1. 本棚ビュー -->
@@ -73,7 +70,7 @@
         <div id="view-add" class="view hide bg-white">
             <div class="p-4 space-y-4 scrollable">
                 <button id="btn-start-scan" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow flex justify-center items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path></svg>
                     バーコード（ISBN）をスキャン
                 </button>
                 <div id="scanner-container" class="w-full hidden bg-black rounded-lg overflow-hidden">
@@ -83,7 +80,7 @@
                 
                 <div class="relative flex items-center pt-2">
                     <div class="flex-grow border-t border-gray-300"></div>
-                    <span class="flex-shrink-0 mx-4 text-gray-400 text-sm">またはキーワードで検索</span>
+                    <span class="flex-shrink-0 mx-4 text-gray-400 text-sm">またはキーワード検索</span>
                     <div class="flex-grow border-t border-gray-300"></div>
                 </div>
 
@@ -102,7 +99,6 @@
                 <button id="btn-close-edit" class="text-white px-2">← 戻る</button>
                 <h1 class="text-lg font-bold">読書記録</h1>
                 <div class="flex gap-2">
-                    <!-- 上部にも削除ボタンを配置 -->
                     <button id="btn-delete-book-top" class="text-red-400 font-bold px-2">削除</button>
                     <button id="btn-save-book" class="bg-blue-600 text-white px-3 py-1 rounded font-bold">保存</button>
                 </div>
@@ -111,7 +107,6 @@
                 <input type="hidden" id="edit-id">
                 <input type="hidden" id="edit-isbn">
                 
-                <!-- 表紙画像と基本情報 -->
                 <div class="bg-white p-4 rounded-lg shadow-sm flex gap-4 items-start">
                     <div class="flex flex-col items-center">
                         <img id="edit-cover-preview" src="" class="w-20 h-28 object-cover rounded border shadow-sm bg-gray-100">
@@ -142,14 +137,13 @@
                     </div>
                 </div>
 
-                <!-- 読書記録フォーム -->
                 <div class="bg-white p-4 rounded-lg shadow-sm space-y-4">
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-1">登録日</label>
                         <input type="date" id="edit-registerDate" class="w-full p-2 border rounded bg-gray-50">
                     </div>
                     <div>
-                        <label class="block text-sm font-bold text-gray-700 mb-1">所属グループ (シリーズ本)</label>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">所属グループ</label>
                         <select id="edit-groupId" class="w-full p-2 border rounded bg-gray-50"></select>
                     </div>
                     <div>
@@ -185,12 +179,11 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-bold text-gray-700 mb-1">感想・メモ (最大1000文字)</label>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">感想・メモ</label>
                         <textarea id="edit-review" rows="5" maxlength="1000" class="w-full p-2 border rounded bg-gray-50" placeholder="感想を入力..."></textarea>
                     </div>
                 </div>
 
-                <!-- 最下部の削除ボタン -->
                 <button id="btn-delete-book-bottom" class="w-full py-3 text-red-600 bg-red-50 border border-red-300 rounded-lg font-bold">この本を完全に削除する</button>
             </div>
         </div>
@@ -211,12 +204,10 @@
             <div class="scrollable p-6 space-y-8">
                 <div>
                     <h2 class="text-lg font-bold border-b pb-2 mb-4">データのバックアップ</h2>
-                    <p class="text-sm text-gray-600 mb-4">端末内の全データをCSV形式でダウンロードします。</p>
                     <button id="btn-export-csv" class="w-full bg-gray-800 text-white py-3 rounded-lg font-bold shadow">CSVをエクスポート</button>
                 </div>
                 <div>
                     <h2 class="text-lg font-bold border-b pb-2 mb-4">データの取り込み (ビブリア互換)</h2>
-                    <p class="text-sm text-gray-600 mb-4">books.csv を選択してデータを追加登録します。</p>
                     <input type="file" id="file-import-csv" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
                 </div>
             </div>
@@ -244,7 +235,6 @@
         </button>
     </nav>
 
-    <!-- スクリプト -->
     <script>
         const db = new Dexie("BiblioAppDB");
         db.version(1).stores({
@@ -256,30 +246,37 @@
         let isGridView = true;
         let html5QrCode = null;
 
-        // デフォルトのNoImage SVG
         const noImageSvg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTQwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjE0MCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwIiB5PSI3MCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
+
+        // 確実な画像表示URLを生成する関数（保存済みの古いデータも救済します）
+        function getOptimalCoverUrl(book) {
+            if (book.coverUrl) {
+                // 古いGoogle BooksのURLがそのまま保存されている場合はプロキシを通す
+                if (book.coverUrl.includes('books.google.com') && !book.coverUrl.includes('weserv.nl')) {
+                    return `https://images.weserv.nl/?url=${encodeURIComponent(book.coverUrl)}`;
+                }
+                return book.coverUrl; // openBDなど正常なURL
+            }
+            if (book.isbn) {
+                // coverUrlが空でもISBNがあれば国会図書館(NDL)APIに頼る
+                const cleanIsbn = book.isbn.replace(/-/g, '');
+                return `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
+            }
+            return noImageSvg;
+        }
 
         // ナビゲーション
         const navBtns = document.querySelectorAll('.nav-btn');
         navBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 const target = btn.dataset.target;
-                navBtns.forEach(b => {
-                    b.classList.remove('text-blue-600');
-                    b.classList.add('text-gray-500');
-                });
-                btn.classList.remove('text-gray-500');
-                btn.classList.add('text-blue-600');
+                navBtns.forEach(b => { b.classList.remove('text-blue-600'); b.classList.add('text-gray-500'); });
+                btn.classList.remove('text-gray-500'); btn.classList.add('text-blue-600');
 
                 document.querySelectorAll('.view').forEach(v => v.classList.add('hide'));
                 document.getElementById(target).classList.remove('hide');
                 
-                const titles = {
-                    'view-bookshelf': '本棚',
-                    'view-add': '本の登録・検索',
-                    'view-groups': 'グループ管理',
-                    'view-settings': 'データ管理'
-                };
+                const titles = { 'view-bookshelf': '本棚', 'view-add': '本の登録・検索', 'view-groups': 'グループ管理', 'view-settings': 'データ管理' };
                 document.getElementById('header-title').innerText = titles[target];
 
                 if(target === 'view-bookshelf') renderBookshelf();
@@ -296,7 +293,6 @@
         async function renderBookshelf() {
             const container = document.getElementById('bookshelf-container');
             container.innerHTML = '';
-            
             const books = await db.books.toArray();
             const groups = await db.groups.orderBy('order').toArray();
             
@@ -304,13 +300,9 @@
 
             const groupedBooks = { '未分類': [] };
             groups.forEach(g => groupedBooks[g.id] = { name: g.name, books: [] });
-            
             books.forEach(b => {
-                if (b.groupId && groupedBooks[b.groupId]) {
-                    groupedBooks[b.groupId].books.push(b);
-                } else {
-                    groupedBooks['未分類'].push(b);
-                }
+                if (b.groupId && groupedBooks[b.groupId]) groupedBooks[b.groupId].books.push(b);
+                else groupedBooks['未分類'].push(b);
             });
 
             for (const [key, group] of Object.entries(groupedBooks)) {
@@ -322,27 +314,21 @@
 
                 const groupEl = document.createElement('div');
                 groupEl.className = 'mb-6';
-                
                 const headerEl = document.createElement('h2');
                 headerEl.className = 'text-base font-bold border-b-2 border-blue-300 mb-3 pb-1 text-gray-700 flex justify-between';
                 headerEl.innerHTML = `<span>${groupName}</span> <span class="text-sm font-normal text-gray-500">${bookList.length}冊</span>`;
                 groupEl.appendChild(headerEl);
 
                 const listEl = document.createElement('div');
-                if (isGridView) {
-                    listEl.className = 'grid grid-cols-3 gap-3';
-                } else {
-                    listEl.className = 'space-y-2';
-                }
-
+                listEl.className = isGridView ? 'grid grid-cols-3 gap-3' : 'space-y-2';
                 bookList.sort((a, b) => (a.orderInGroup || 0) - (b.orderInGroup || 0));
 
                 bookList.forEach(book => {
                     const item = document.createElement('div');
-                    const coverImg = book.coverUrl ? book.coverUrl : noImageSvg;
+                    const coverImg = getOptimalCoverUrl(book); // ★改善した表示ロジックを使用
 
                     if (isGridView) {
-                        item.className = 'flex flex-col items-center cursor-pointer';
+                        item.className = 'flex flex-col items-center cursor-pointer relative';
                         item.innerHTML = `
                             <img src="${coverImg}" class="w-full h-36 object-cover rounded shadow border bg-gray-200" loading="lazy" onerror="this.src='${noImageSvg}'">
                             <span class="text-xs text-center line-clamp-2 w-full mt-1">${book.title}</span>
@@ -373,120 +359,81 @@
                     listEl.appendChild(item);
                 });
                 
-                if(bookList.length > 0) {
-                    groupEl.appendChild(listEl);
-                    container.appendChild(groupEl);
-                }
+                if(bookList.length > 0) { groupEl.appendChild(listEl); container.appendChild(groupEl); }
             }
         }
 
         // スキャン & 検索
         document.getElementById('btn-start-scan').addEventListener('click', () => {
-            const container = document.getElementById('scanner-container');
-            container.classList.remove('hidden');
-            
+            document.getElementById('scanner-container').classList.remove('hidden');
             html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 150 } },
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 150 } },
                 (decodedText) => {
                     const cleanIsbn = decodedText.replace(/-/g, '');
                     if(cleanIsbn.startsWith('978') || cleanIsbn.startsWith('979')) {
-                        stopScanner();
-                        searchBookByISBN(cleanIsbn);
+                        stopScanner(); searchBookByISBN(cleanIsbn);
                     }
-                },
-                () => {}
+                }, () => {}
             ).catch(err => {
-                alert("カメラの起動に失敗しました。権限を許可してください。");
-                container.classList.add('hidden');
+                alert("カメラの起動に失敗しました。");
+                document.getElementById('scanner-container').classList.add('hidden');
             });
         });
 
         document.getElementById('btn-stop-scan').addEventListener('click', stopScanner);
-
         function stopScanner() {
-            if(html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('scanner-container').classList.add('hidden');
-                }).catch(e => console.log(e));
-            }
+            if(html5QrCode) html5QrCode.stop().then(() => { document.getElementById('scanner-container').classList.add('hidden'); }).catch(e=>e);
         }
 
         document.getElementById('btn-search').addEventListener('click', () => {
             const kw = document.getElementById('search-keyword').value.trim();
             if(!kw) return;
             const clean = kw.replace(/-/g, '');
-            if(clean.match(/^97[89]\d{10}$/)) {
-                searchBookByISBN(clean);
-            } else {
-                searchBookByKeyword(kw);
-            }
+            if(clean.match(/^97[89]\d{10}$/)) searchBookByISBN(clean);
+            else searchBookByKeyword(kw);
         });
 
-        // API検索（Google Books画像リンクのクリーンアップを追加）
+        // 検索ロジック (オープンURL優先 + プロキシ)
         async function searchBookByISBN(isbn) {
             document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">検索中...</p>';
+            let bookData = null;
+
+            // 1. openBD (とても安定した画像URLを返す)
             try {
-                let bookData = null;
+                const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
+                const data = await res.json();
+                if (data && data[0] && data[0].summary) {
+                    const s = data[0].summary;
+                    bookData = {
+                        isbn: isbn, title: s.title || '', author: s.author || '',
+                        publisher: s.publisher || '', publishedDate: s.pubdate || '',
+                        coverUrl: s.cover || `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg` // 空ならNDLをセット
+                    };
+                }
+            } catch(e) {}
 
-                // 1. openBD
-                try {
-                    const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
-                    const data = await res.json();
-                    if (data && data[0] && data[0].summary) {
-                        const s = data[0].summary;
-                        bookData = {
-                            isbn: s.isbn || isbn,
-                            title: s.title || '',
-                            author: s.author || '',
-                            publisher: s.publisher || '',
-                            publishedDate: s.pubdate || '',
-                            coverUrl: s.cover || ''
-                        };
-                    }
-                } catch(e) {}
-
-                // 2. Google Books
+            // 2. Google Books (openBDで見つからない場合。画像はプロキシを通す)
+            if (!bookData) {
                 try {
                     const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
                     const data = await res.json();
                     if (data.items && data.items.length > 0) {
                         const info = data.items[0].volumeInfo;
-                        let gCover = '';
-                        if (info.imageLinks) {
-                            // httpをhttpsに置換し、curlパラメータを除去してブロックを防止
-                            let rawUrl = info.imageLinks.thumbnail || info.imageLinks.smallThumbnail || '';
-                            gCover = rawUrl.replace(/^http:\/\//i, 'https://').replace(/&edge=curl/g, '');
+                        let gCover = `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`; // ベースはNDL
+                        if (info.imageLinks && info.imageLinks.thumbnail) {
+                            const rawUrl = info.imageLinks.thumbnail.replace('http:', 'https:').replace(/&edge=curl/g, '');
+                            gCover = `https://images.weserv.nl/?url=${encodeURIComponent(rawUrl)}`; // プロキシ経由
                         }
-                        if (!bookData) {
-                            bookData = {
-                                isbn: isbn,
-                                title: info.title || 'タイトル不明',
-                                author: info.authors ? info.authors.join(', ') : '',
-                                publisher: info.publisher || '',
-                                publishedDate: info.publishedDate || '',
-                                coverUrl: gCover
-                            };
-                        } else if (!bookData.coverUrl && gCover) {
-                            bookData.coverUrl = gCover;
-                        }
+                        bookData = {
+                            isbn: isbn, title: info.title || 'タイトル不明', author: info.authors ? info.authors.join(', ') : '',
+                            publisher: info.publisher || '', publishedDate: info.publishedDate || '', coverUrl: gCover
+                        };
                     }
                 } catch(e) {}
-
-                // 3. 国立国会図書館 (NDL) サーチAPI 表紙フォールバック
-                if (bookData && !bookData.coverUrl) {
-                    bookData.coverUrl = `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`;
-                }
-
-                if (bookData) {
-                    showSearchResults([bookData]);
-                } else {
-                    document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">書籍情報が見つかりませんでした。</p>';
-                }
-            } catch (e) {
-                document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">通信エラーが発生しました。</p>';
             }
+
+            if (bookData) showSearchResults([bookData]);
+            else document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
         }
 
         async function searchBookByKeyword(keyword) {
@@ -503,26 +450,20 @@
                             if(i13) isbn = i13.identifier;
                         }
                         let gCover = '';
-                        if (info.imageLinks) {
-                            let rawUrl = info.imageLinks.thumbnail || info.imageLinks.smallThumbnail || '';
-                            gCover = rawUrl.replace(/^http:\/\//i, 'https://').replace(/&edge=curl/g, '');
+                        if (info.imageLinks && info.imageLinks.thumbnail) {
+                            const rawUrl = info.imageLinks.thumbnail.replace('http:', 'https:').replace(/&edge=curl/g, '');
+                            gCover = `https://images.weserv.nl/?url=${encodeURIComponent(rawUrl)}`;
+                        } else if (isbn) {
+                            gCover = `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`;
                         }
                         return {
-                            isbn: isbn,
-                            title: info.title || 'タイトル不明',
-                            author: info.authors ? info.authors.join(', ') : '',
-                            publisher: info.publisher || '',
-                            publishedDate: info.publishedDate || '',
-                            coverUrl: gCover
+                            isbn: isbn, title: info.title || 'タイトル不明', author: info.authors ? info.authors.join(', ') : '',
+                            publisher: info.publisher || '', publishedDate: info.publishedDate || '', coverUrl: gCover
                         };
                     });
                     showSearchResults(results);
-                } else {
-                    document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
-                }
-            } catch (e) {
-                document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">通信エラーが発生しました。</p>';
-            }
+                } else { document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>'; }
+            } catch (e) { document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">エラーが発生しました。</p>'; }
         }
 
         function showSearchResults(books) {
@@ -544,20 +485,10 @@
                 el.querySelector('.btn-register').addEventListener('click', async () => {
                     const today = new Date().toISOString().split('T')[0];
                     const newBook = {
-                        id: crypto.randomUUID(),
-                        isbn: b.isbn,
-                        title: b.title,
-                        author: b.author,
-                        publisher: b.publisher,
-                        publishedDate: b.publishedDate,
-                        coverUrl: b.coverUrl,
-                        registerDate: today,
-                        readMethod: '',
-                        rating: 0,
-                        review: '',
-                        acquisitionSource: '',
-                        groupId: null,
-                        orderInGroup: 0
+                        id: crypto.randomUUID(), isbn: b.isbn, title: b.title, author: b.author,
+                        publisher: b.publisher, publishedDate: b.publishedDate, coverUrl: b.coverUrl,
+                        registerDate: today, readMethod: '', rating: 0, review: '', acquisitionSource: '',
+                        groupId: null, orderInGroup: 0
                     };
                     await db.books.put(newBook);
                     openEditBook(newBook);
@@ -568,224 +499,148 @@
             });
         }
 
-        // 詳細・編集
+        // 編集
         let currentCoverBase64 = '';
-
         async function openEditBook(book) {
             const groups = await db.groups.orderBy('order').toArray();
             const groupSelect = document.getElementById('edit-groupId');
             groupSelect.innerHTML = '<option value="">未分類</option>';
             groups.forEach(g => {
-                const opt = document.createElement('option');
-                opt.value = g.id;
-                opt.innerText = g.name;
-                groupSelect.appendChild(opt);
+                const opt = document.createElement('option'); opt.value = g.id; opt.innerText = g.name; groupSelect.appendChild(opt);
             });
 
-            document.getElementById('edit-id').value = book.id;
-            document.getElementById('edit-isbn').value = book.isbn || '';
-            document.getElementById('edit-title').value = book.title || '';
-            document.getElementById('edit-author').value = book.author || '';
-            document.getElementById('edit-publisher').value = book.publisher || '';
-            document.getElementById('edit-publishedDate').value = book.publishedDate || '';
-            document.getElementById('edit-registerDate').value = book.registerDate || '';
-            document.getElementById('edit-groupId').value = book.groupId || '';
-            document.getElementById('edit-readMethod').value = book.readMethod || '';
-            document.getElementById('edit-rating').value = book.rating || 0;
-            document.getElementById('edit-acquisitionSource').value = book.acquisitionSource || '';
-            document.getElementById('edit-review').value = book.review || '';
+            document.getElementById('edit-id').value = book.id; document.getElementById('edit-isbn').value = book.isbn || '';
+            document.getElementById('edit-title').value = book.title || ''; document.getElementById('edit-author').value = book.author || '';
+            document.getElementById('edit-publisher').value = book.publisher || ''; document.getElementById('edit-publishedDate').value = book.publishedDate || '';
+            document.getElementById('edit-registerDate').value = book.registerDate || ''; document.getElementById('edit-groupId').value = book.groupId || '';
+            document.getElementById('edit-readMethod').value = book.readMethod || ''; document.getElementById('edit-rating').value = book.rating || 0;
+            document.getElementById('edit-acquisitionSource').value = book.acquisitionSource || ''; document.getElementById('edit-review').value = book.review || '';
 
-            // カバー画像の表示
             currentCoverBase64 = book.coverUrl || '';
             const preview = document.getElementById('edit-cover-preview');
-            preview.src = currentCoverBase64 ? currentCoverBase64 : noImageSvg;
+            preview.src = getOptimalCoverUrl(book); // ここも安全な表示用関数を通す
             preview.onerror = () => { preview.src = noImageSvg; };
 
             document.getElementById('view-edit').classList.remove('hide');
         }
 
-        // 表紙画像の変更（手動アップロード）
         document.getElementById('edit-cover-file').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if(!file) return;
             const reader = new FileReader();
             reader.onload = (event) => {
-                currentCoverBase64 = event.target.result;
+                currentCoverBase64 = event.target.result; // 手動の時はBase64をセット
                 document.getElementById('edit-cover-preview').src = currentCoverBase64;
             };
             reader.readAsDataURL(file);
         });
 
-        document.getElementById('btn-close-edit').addEventListener('click', () => {
-            document.getElementById('view-edit').classList.add('hide');
-            renderBookshelf();
-        });
+        document.getElementById('btn-close-edit').addEventListener('click', () => { document.getElementById('view-edit').classList.add('hide'); renderBookshelf(); });
 
         document.getElementById('btn-save-book').addEventListener('click', async () => {
             const updatedBook = {
-                id: document.getElementById('edit-id').value,
-                isbn: document.getElementById('edit-isbn').value,
-                coverUrl: currentCoverBase64,
-                title: document.getElementById('edit-title').value,
-                author: document.getElementById('edit-author').value,
-                publisher: document.getElementById('edit-publisher').value,
-                publishedDate: document.getElementById('edit-publishedDate').value,
-                registerDate: document.getElementById('edit-registerDate').value,
-                groupId: document.getElementById('edit-groupId').value || null,
-                readMethod: document.getElementById('edit-readMethod').value,
-                rating: Number(document.getElementById('edit-rating').value),
-                acquisitionSource: document.getElementById('edit-acquisitionSource').value,
-                review: document.getElementById('edit-review').value,
-                orderInGroup: 0
+                id: document.getElementById('edit-id').value, isbn: document.getElementById('edit-isbn').value,
+                coverUrl: currentCoverBase64, title: document.getElementById('edit-title').value,
+                author: document.getElementById('edit-author').value, publisher: document.getElementById('edit-publisher').value,
+                publishedDate: document.getElementById('edit-publishedDate').value, registerDate: document.getElementById('edit-registerDate').value,
+                groupId: document.getElementById('edit-groupId').value || null, readMethod: document.getElementById('edit-readMethod').value,
+                rating: Number(document.getElementById('edit-rating').value), acquisitionSource: document.getElementById('edit-acquisitionSource').value,
+                review: document.getElementById('edit-review').value, orderInGroup: 0
             };
             await db.books.put(updatedBook);
-            document.getElementById('view-edit').classList.add('hide');
-            renderBookshelf();
+            document.getElementById('view-edit').classList.add('hide'); renderBookshelf();
         });
 
-        // 削除関数（上部・下部共通）
         async function executeDelete() {
-            const title = document.getElementById('edit-title').value || 'この本';
-            if(confirm(`「${title}」を削除してもよろしいですか？`)) {
-                const id = document.getElementById('edit-id').value;
-                await db.books.delete(id);
-                document.getElementById('view-edit').classList.add('hide');
-                renderBookshelf();
+            if(confirm(`この本を削除してもよろしいですか？`)) {
+                await db.books.delete(document.getElementById('edit-id').value);
+                document.getElementById('view-edit').classList.add('hide'); renderBookshelf();
             }
         }
         document.getElementById('btn-delete-book-top').addEventListener('click', executeDelete);
         document.getElementById('btn-delete-book-bottom').addEventListener('click', executeDelete);
 
-        // グループ管理
+        // グループ
         async function renderGroupsManage() {
-            const container = document.getElementById('group-list-container');
-            container.innerHTML = '';
+            const container = document.getElementById('group-list-container'); container.innerHTML = '';
             const groups = await db.groups.orderBy('order').toArray();
-            
             groups.forEach(g => {
-                const el = document.createElement('div');
-                el.className = 'flex justify-between items-center p-3 bg-gray-50 border rounded';
-                el.innerHTML = `
-                    <span class="font-bold">${g.name}</span>
-                    <button class="text-red-500 text-sm px-2 py-1 btn-del-group">削除</button>
-                `;
+                const el = document.createElement('div'); el.className = 'flex justify-between items-center p-3 bg-gray-50 border rounded';
+                el.innerHTML = `<span class="font-bold">${g.name}</span><button class="text-red-500 text-sm px-2 py-1 btn-del-group">削除</button>`;
                 el.querySelector('.btn-del-group').addEventListener('click', async () => {
                     if(confirm(`グループ「${g.name}」を削除しますか？`)) {
                         await db.books.where('groupId').equals(g.id).modify({groupId: null});
-                        await db.groups.delete(g.id);
-                        renderGroupsManage();
+                        await db.groups.delete(g.id); renderGroupsManage();
                     }
                 });
                 container.appendChild(el);
             });
         }
-
         document.getElementById('btn-create-group').addEventListener('click', async () => {
-            const nameInput = document.getElementById('new-group-name');
-            const name = nameInput.value.trim();
-            if(!name) return;
-            const count = await db.groups.count();
-            await db.groups.put({
-                id: crypto.randomUUID(),
-                name: name,
-                order: count
-            });
-            nameInput.value = '';
-            renderGroupsManage();
+            const nameInput = document.getElementById('new-group-name'); const name = nameInput.value.trim(); if(!name) return;
+            await db.groups.put({ id: crypto.randomUUID(), name: name, order: await db.groups.count() });
+            nameInput.value = ''; renderGroupsManage();
         });
 
-        // CSV入出力
+        // CSV
         document.getElementById('btn-export-csv').addEventListener('click', async () => {
             const books = await db.books.toArray();
-            if(books.length === 0) return alert('出力するデータがありません。');
-            
+            if(books.length === 0) return alert('出力データがありません。');
             const headers = ['id', 'isbn', 'title', 'author', 'publisher', 'publishedDate', 'registerDate', 'readMethod', 'rating', 'acquisitionSource', 'review', 'groupId', 'coverUrl'];
             let csvContent = '\uFEFF' + headers.join(',') + '\n';
-
             books.forEach(b => {
-                const row = headers.map(h => {
-                    let val = b[h] === null || b[h] === undefined ? '' : String(b[h]);
-                    if (val.includes(',') || val.includes('\n') || val.includes('"')) {
-                        val = '"' + val.replace(/"/g, '""') + '"';
-                    }
-                    return val;
-                });
-                csvContent += row.join(',') + '\n';
+                csvContent += headers.map(h => {
+                    let val = b[h] == null ? '' : String(b[h]);
+                    return (val.includes(',') || val.includes('\n') || val.includes('"')) ? '"' + val.replace(/"/g, '""') + '"' : val;
+                }).join(',') + '\n';
             });
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = `my_books_backup_${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
+            a.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }));
+            a.download = `my_books_backup_${new Date().toISOString().split('T')[0]}.csv`; a.click();
         });
 
         document.getElementById('file-import-csv').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if(!file) return;
-
+            const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
             reader.onload = async (event) => {
-                const text = event.target.result;
-                const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-                if(lines.length < 2) return alert('有効なCSVデータが見つかりません。');
-                
+                const lines = event.target.result.split(/\r?\n/).filter(l => l.trim() !== '');
+                if(lines.length < 2) return alert('CSVが見つかりません。');
                 const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
                 let importCount = 0;
-
                 for(let i = 1; i < lines.length; i++) {
-                    let inQuotes = false;
-                    let currentVal = '';
-                    const row = [];
+                    let inQuotes = false, currentVal = ''; const row = [];
                     for(let char of lines[i]) {
                         if(char === '"') inQuotes = !inQuotes;
-                        else if(char === ',' && !inQuotes) {
-                            row.push(currentVal);
-                            currentVal = '';
-                        } else {
-                            currentVal += char;
-                        }
+                        else if(char === ',' && !inQuotes) { row.push(currentVal); currentVal = ''; }
+                        else { currentVal += char; }
                     }
                     row.push(currentVal);
-
                     const book = { id: crypto.randomUUID(), groupId: null, orderInGroup: 0 };
                     headers.forEach((h, index) => {
-                        let val = row[index] || '';
-                        val = val.replace(/^"|"$/g, '').replace(/""/g, '"');
+                        let val = (row[index] || '').replace(/^"|"$/g, '').replace(/""/g, '"');
                         if(h.includes('タイトル') || h === 'title') book.title = val;
                         else if(h.includes('著者') || h === 'author') book.author = val;
-                        else if(h.includes('ISBN') || h.toLowerCase() === 'isbn') book.isbn = val;
+                        else if(h.includes('ISBN') || h.toLowerCase() === 'isbn') book.isbn = val.replace(/-/g, '');
                         else if(h.includes('出版社') || h === 'publisher') book.publisher = val;
                         else if(h.includes('発行日') || h === 'publishedDate') book.publishedDate = val;
-                        else if(h.includes('登録日') || h.includes('読了日') || h === 'registerDate') {
-                            book.registerDate = val.replace(/\//g, '-').substring(0,10);
-                        }
+                        else if(h.includes('登録日') || h.includes('読了日') || h === 'registerDate') book.registerDate = val.replace(/\//g, '-').substring(0,10);
                         else if(h.includes('感想') || h === 'review') book.review = val;
                         else if(h.includes('評価') || h === 'rating') book.rating = Number(val.replace(/[^0-9]/g, '')) || 0;
                         else if(h === 'readMethod') book.readMethod = val;
                         else if(h === 'acquisitionSource') book.acquisitionSource = val;
                         else if(h === 'coverUrl') book.coverUrl = val;
                     });
-
                     if(book.title) {
                         if(!book.registerDate) book.registerDate = new Date().toISOString().split('T')[0];
-                        await db.books.put(book);
-                        importCount++;
+                        await db.books.put(book); importCount++;
                     }
                 }
-                
-                alert(`${importCount} 冊のデータを取り込みました。`);
-                e.target.value = '';
-                renderBookshelf();
+                alert(`${importCount} 冊取り込みました。`); e.target.value = ''; renderBookshelf();
             };
             reader.readAsText(file);
         });
 
-        window.addEventListener('DOMContentLoaded', () => {
-            renderBookshelf();
-        });
+        window.addEventListener('DOMContentLoaded', () => { renderBookshelf(); });
     </script>
 </body>
 </html>
