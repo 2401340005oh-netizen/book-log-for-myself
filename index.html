@@ -37,16 +37,6 @@
         };
         const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
         document.write(`<link rel="manifest" href="${URL.createObjectURL(manifestBlob)}">`);
-
-        if ('serviceWorker' in navigator) {
-            const swCode = `
-                self.addEventListener('install', e => self.skipWaiting());
-                self.addEventListener('activate', e => self.clients.claim());
-                self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => new Response('Offline'))));
-            `;
-            const swBlob = new Blob([swCode], { type: 'application/javascript' });
-            navigator.serviceWorker.register(URL.createObjectURL(swBlob));
-        }
     </script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans selection:bg-blue-200">
@@ -247,22 +237,32 @@
         let html5QrCode = null;
 
         const noImageSvg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTQwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjE0MCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwIiB5PSI3MCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
-
-        // 確実な画像表示URLを生成する関数（保存済みの古いデータも救済します）
-        function getOptimalCoverUrl(book) {
-            if (book.coverUrl) {
-                // 古いGoogle BooksのURLがそのまま保存されている場合はプロキシを通す
-                if (book.coverUrl.includes('books.google.com') && !book.coverUrl.includes('weserv.nl')) {
-                    return `https://images.weserv.nl/?url=${encodeURIComponent(book.coverUrl)}`;
-                }
-                return book.coverUrl; // openBDなど正常なURL
-            }
+        // 表紙画像候補を作る。書誌情報の取得元と画像の取得元を分ける。
+        function getCoverCandidates(book) {
+            const candidates = [];
+            if (book.coverUrl) candidates.push(book.coverUrl);
+            if (Array.isArray(book.coverUrls)) candidates.push(...book.coverUrls);
             if (book.isbn) {
-                // coverUrlが空でもISBNがあれば国会図書館(NDL)APIに頼る
-                const cleanIsbn = book.isbn.replace(/-/g, '');
-                return `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
+                const isbn = String(book.isbn).replace(/-/g, '');
+                if (/^97[89]\d{10}$/.test(isbn)) candidates.push(`https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`);
             }
-            return noImageSvg;
+            return [...new Set(candidates.filter(Boolean))];
+        }
+
+        // 画像を候補順に試し、失敗したら次のURLへ進む。
+        function setCoverImage(img, book) {
+            const candidates = getCoverCandidates(book);
+            let index = 0;
+            const tryNext = () => {
+                if (index >= candidates.length) {
+                    img.onerror = null;
+                    img.src = noImageSvg;
+                    return;
+                }
+                img.onerror = tryNext;
+                img.src = candidates[index++];
+            };
+            tryNext();
         }
 
         // ナビゲーション
@@ -325,20 +325,20 @@
 
                 bookList.forEach(book => {
                     const item = document.createElement('div');
-                    const coverImg = getOptimalCoverUrl(book); // ★改善した表示ロジックを使用
 
                     if (isGridView) {
                         item.className = 'flex flex-col items-center cursor-pointer relative';
                         item.innerHTML = `
-                            <img src="${coverImg}" class="w-full h-36 object-cover rounded shadow border bg-gray-200" loading="lazy" onerror="this.src='${noImageSvg}'">
+                            <img class="book-cover w-full h-36 object-cover rounded shadow border bg-gray-200">
                             <span class="text-xs text-center line-clamp-2 w-full mt-1">${book.title}</span>
                         `;
+                        setCoverImage(item.querySelector('.book-cover'), book);
                         item.addEventListener('click', () => openEditBook(book));
                     } else {
                         item.className = 'flex items-center p-2 bg-white rounded shadow-sm border justify-between';
                         item.innerHTML = `
                             <div class="flex items-center gap-3 min-w-0 flex-grow cursor-pointer book-info-click">
-                                <img src="${coverImg}" class="w-10 h-14 object-cover border rounded flex-shrink-0 bg-gray-200" onerror="this.src='${noImageSvg}'">
+                                <img class="book-cover w-10 h-14 object-cover border rounded flex-shrink-0 bg-gray-200">
                                 <div class="min-w-0">
                                     <p class="text-sm font-bold truncate">${book.title}</p>
                                     <p class="text-xs text-gray-500 truncate">${book.author}</p>
@@ -347,6 +347,7 @@
                             </div>
                             <button class="text-red-500 text-xs px-2 py-1 border border-red-200 rounded ml-2 flex-shrink-0 btn-quick-del">削除</button>
                         `;
+                        setCoverImage(item.querySelector('.book-cover'), book);
                         item.querySelector('.book-info-click').addEventListener('click', () => openEditBook(book));
                         item.querySelector('.btn-quick-del').addEventListener('click', async (e) => {
                             e.stopPropagation();
@@ -392,48 +393,64 @@
             if(clean.match(/^97[89]\d{10}$/)) searchBookByISBN(clean);
             else searchBookByKeyword(kw);
         });
-
-        // 検索ロジック (オープンURL優先 + プロキシ)
+        // ISBN検索：openBDで書誌情報を取得しつつ、Google Booksでも必ず表紙候補を探す。
         async function searchBookByISBN(isbn) {
             document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">検索中...</p>';
             let bookData = null;
+            let coverUrls = [];
 
-            // 1. openBD (とても安定した画像URLを返す)
             try {
                 const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
                 const data = await res.json();
                 if (data && data[0] && data[0].summary) {
                     const s = data[0].summary;
                     bookData = {
-                        isbn: isbn, title: s.title || '', author: s.author || '',
+                        isbn, title: s.title || '', author: s.author || '',
                         publisher: s.publisher || '', publishedDate: s.pubdate || '',
-                        coverUrl: s.cover || `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg` // 空ならNDLをセット
+                        coverUrl: '', coverUrls: []
                     };
+                    if (s.cover) coverUrls.push(s.cover);
                 }
-            } catch(e) {}
-
-            // 2. Google Books (openBDで見つからない場合。画像はプロキシを通す)
-            if (!bookData) {
-                try {
-                    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-                    const data = await res.json();
-                    if (data.items && data.items.length > 0) {
-                        const info = data.items[0].volumeInfo;
-                        let gCover = `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`; // ベースはNDL
-                        if (info.imageLinks && info.imageLinks.thumbnail) {
-                            const rawUrl = info.imageLinks.thumbnail.replace('http:', 'https:').replace(/&edge=curl/g, '');
-                            gCover = `https://images.weserv.nl/?url=${encodeURIComponent(rawUrl)}`; // プロキシ経由
-                        }
-                        bookData = {
-                            isbn: isbn, title: info.title || 'タイトル不明', author: info.authors ? info.authors.join(', ') : '',
-                            publisher: info.publisher || '', publishedDate: info.publishedDate || '', coverUrl: gCover
-                        };
-                    }
-                } catch(e) {}
+            } catch (e) {
+                console.warn('openBD error:', e);
             }
 
-            if (bookData) showSearchResults([bookData]);
-            else document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
+            // openBDで本が見つかっていても、Google Booksの表紙を必ず確認する。
+            try {
+                const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+                const data = await res.json();
+                if (data.items && data.items.length > 0) {
+                    const info = data.items[0].volumeInfo;
+                    if (!bookData) {
+                        bookData = {
+                            isbn, title: info.title || 'タイトル不明',
+                            author: info.authors ? info.authors.join(', ') : '',
+                            publisher: info.publisher || '', publishedDate: info.publishedDate || '',
+                            coverUrl: '', coverUrls: []
+                        };
+                    }
+                    if (info.imageLinks && info.imageLinks.thumbnail) {
+                        const rawUrl = info.imageLinks.thumbnail
+                            .replace(/^http:/, 'https:')
+                            .replace(/&edge=curl/g, '');
+                        coverUrls.push(rawUrl);
+                        coverUrls.push(`https://images.weserv.nl/?url=${encodeURIComponent(rawUrl)}`);
+                    }
+                }
+            } catch (e) {
+                console.warn('Google Books error:', e);
+            }
+
+            coverUrls.push(`https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`);
+            coverUrls = [...new Set(coverUrls.filter(Boolean))];
+
+            if (bookData) {
+                bookData.coverUrls = coverUrls;
+                bookData.coverUrl = coverUrls[0] || '';
+                showSearchResults([bookData]);
+            } else {
+                document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
+            }
         }
 
         async function searchBookByKeyword(keyword) {
@@ -449,16 +466,18 @@
                             const i13 = info.industryIdentifiers.find(i => i.type === 'ISBN_13');
                             if(i13) isbn = i13.identifier;
                         }
-                        let gCover = '';
+                        const coverUrls = [];
                         if (info.imageLinks && info.imageLinks.thumbnail) {
-                            const rawUrl = info.imageLinks.thumbnail.replace('http:', 'https:').replace(/&edge=curl/g, '');
-                            gCover = `https://images.weserv.nl/?url=${encodeURIComponent(rawUrl)}`;
-                        } else if (isbn) {
-                            gCover = `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`;
+                            const rawUrl = info.imageLinks.thumbnail.replace(/^http:/, 'https:').replace(/&edge=curl/g, '');
+                            coverUrls.push(rawUrl);
+                            coverUrls.push(`https://images.weserv.nl/?url=${encodeURIComponent(rawUrl)}`);
                         }
+                        if (isbn) coverUrls.push(`https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`);
+                        const uniqueCoverUrls = [...new Set(coverUrls.filter(Boolean))];
                         return {
                             isbn: isbn, title: info.title || 'タイトル不明', author: info.authors ? info.authors.join(', ') : '',
-                            publisher: info.publisher || '', publishedDate: info.publishedDate || '', coverUrl: gCover
+                            publisher: info.publisher || '', publishedDate: info.publishedDate || '',
+                            coverUrl: uniqueCoverUrls[0] || '', coverUrls: uniqueCoverUrls
                         };
                     });
                     showSearchResults(results);
@@ -472,9 +491,8 @@
             books.forEach(b => {
                 const el = document.createElement('div');
                 el.className = 'flex gap-3 p-3 border rounded-lg bg-gray-50 shadow-sm items-center';
-                const cover = b.coverUrl ? b.coverUrl : noImageSvg;
                 el.innerHTML = `
-                    <img src="${cover}" class="w-12 h-16 object-cover border bg-gray-200" onerror="this.src='${noImageSvg}'">
+                    <img class="search-cover w-12 h-16 object-cover border bg-gray-200">
                     <div class="flex-grow min-w-0">
                         <p class="text-sm font-bold truncate">${b.title}</p>
                         <p class="text-xs text-gray-500 truncate">${b.author}</p>
@@ -482,11 +500,12 @@
                     </div>
                     <button class="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold whitespace-nowrap btn-register">登録</button>
                 `;
+                setCoverImage(el.querySelector('.search-cover'), b);
                 el.querySelector('.btn-register').addEventListener('click', async () => {
                     const today = new Date().toISOString().split('T')[0];
                     const newBook = {
                         id: crypto.randomUUID(), isbn: b.isbn, title: b.title, author: b.author,
-                        publisher: b.publisher, publishedDate: b.publishedDate, coverUrl: b.coverUrl,
+                        publisher: b.publisher, publishedDate: b.publishedDate, coverUrl: b.coverUrl, coverUrls: b.coverUrls || [],
                         registerDate: today, readMethod: '', rating: 0, review: '', acquisitionSource: '',
                         groupId: null, orderInGroup: 0
                     };
@@ -518,8 +537,7 @@
 
             currentCoverBase64 = book.coverUrl || '';
             const preview = document.getElementById('edit-cover-preview');
-            preview.src = getOptimalCoverUrl(book); // ここも安全な表示用関数を通す
-            preview.onerror = () => { preview.src = noImageSvg; };
+            setCoverImage(preview, book);
 
             document.getElementById('view-edit').classList.remove('hide');
         }
