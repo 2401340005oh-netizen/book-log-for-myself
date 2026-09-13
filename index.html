@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="referrer" content="no-referrer">
+    <!-- キーワード検索APIが弾かれる原因だった no-referrer は削除しました -->
     <title>My読書記録</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -21,30 +21,17 @@
     </style>
 
     <script>
-        // PWA Manifest & Service Worker
         const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#3b82f6"/><text x="50" y="55" font-size="50" font-weight="bold" text-anchor="middle" dominant-baseline="middle" fill="#ffffff">読</text></svg>`;
         const iconBase64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgIcon)));
-
-        const manifest = {
-            name: "My読書記録",
-            short_name: "読書記録",
-            display: "standalone",
-            start_url: ".",
-            background_color: "#f3f4f6",
-            theme_color: "#3b82f6",
-            icons: [{ src: iconBase64, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }]
-        };
+        const manifest = { name: "My読書記録", short_name: "読書記録", display: "standalone", start_url: ".", background_color: "#f3f4f6", theme_color: "#3b82f6", icons: [{ src: iconBase64, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }] };
         const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
         document.write(`<link rel="manifest" href="${URL.createObjectURL(manifestBlob)}">`);
 
-        // 強力なキャッシュを持たないServiceWorkerに更新
         if ('serviceWorker' in navigator) {
             const swCode = `
                 self.addEventListener('install', e => self.skipWaiting());
                 self.addEventListener('activate', e => self.clients.claim());
-                self.addEventListener('fetch', e => {
-                    e.respondWith(fetch(e.request).catch(() => new Response('Offline')));
-                });
+                self.addEventListener('fetch', e => { e.respondWith(fetch(e.request).catch(() => new Response('Offline'))); });
             `;
             const swBlob = new Blob([swCode], { type: 'application/javascript' });
             navigator.serviceWorker.register(URL.createObjectURL(swBlob));
@@ -58,7 +45,6 @@
     </header>
 
     <main class="relative h-full">
-
         <!-- 1. 本棚ビュー -->
         <div id="view-bookshelf" class="view">
             <div class="flex justify-between items-center p-3 bg-white border-b">
@@ -110,13 +96,9 @@
                 <input type="hidden" id="edit-isbn">
                 
                 <div class="bg-white p-4 rounded-lg shadow-sm flex gap-4 items-start">
-                    <div class="flex flex-col items-center">
-                        <img id="edit-cover-preview" src="" class="w-20 h-28 object-cover rounded border shadow-sm bg-gray-100">
-                        <label class="mt-2 text-xs text-blue-600 cursor-pointer border border-blue-600 px-2 py-1 rounded">
-                            画像変更
-                            <input type="file" id="edit-cover-file" accept="image/*" class="hidden">
-                        </label>
-                    </div>
+                    <!-- バグ修正：画像を包む固定コンテナを用意 -->
+                    <div class="flex flex-col items-center" id="edit-cover-container"></div>
+                    
                     <div class="flex-grow space-y-2">
                         <div><label class="text-xs text-gray-500">タイトル</label><input type="text" id="edit-title" class="w-full border-b p-1 text-base font-bold outline-none"></div>
                         <div><label class="text-xs text-gray-500">著者名</label><input type="text" id="edit-author" class="w-full border-b p-1 text-sm outline-none"></div>
@@ -206,15 +188,12 @@
         let isGridView = true; let html5QrCode = null;
         const noImageSvg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTQwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjE0MCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwIiB5PSI3MCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OSI+Tk8gSU1BR0U8L3RleHQ+PC9zdmc+';
 
-        // 最高の画像ヒット率を誇るHTMLタグ生成
         function getCoverImgTag(book, extraClass = "") {
-            // 手動設定したBase64画像がある場合はそれを優先
             if (book.coverUrl && book.coverUrl.startsWith('data:image')) {
                 return `<img src="${book.coverUrl}" class="${extraClass}" loading="lazy">`;
             }
             const cleanIsbn = book.isbn ? book.isbn.replace(/-/g, '') : '';
             if (cleanIsbn) {
-                // 1. 版元ドットコム(最新本に最強) → 2. Google/openBD等のAPI取得URL → 3. NDL(国会図書館) → 4. NoImage の順にフォールバック
                 const fallback1 = book.coverUrl ? book.coverUrl : `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
                 const fallback2 = `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
                 return `<img src="https://www.hanmoto.com/bd/img/${cleanIsbn}.jpg" 
@@ -225,7 +204,6 @@
             return `<img src="${book.coverUrl || noImageSvg}" class="${extraClass}" onerror="this.src='${noImageSvg}'">`;
         }
 
-        // 強制アップデート処理
         document.getElementById('btn-force-update').addEventListener('click', async () => {
             if ('serviceWorker' in navigator) {
                 const regs = await navigator.serviceWorker.getRegistrations();
@@ -337,7 +315,6 @@
             if (bookData) showSearchResults([bookData]); else document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
         }
 
-        // キーワード検索をより堅牢に
         async function searchBookByKeyword(keyword) {
             document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">検索中...</p>';
             try {
@@ -359,7 +336,7 @@
                     document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
                 }
             } catch (e) {
-                document.getElementById('search-results').innerHTML = `<p class="text-center text-red-500">通信エラー: ${e.message}</p>`;
+                document.getElementById('search-results').innerHTML = `<p class="text-center text-red-500">通信エラーが発生しました。</p>`;
             }
         }
 
@@ -397,12 +374,13 @@
             document.getElementById('edit-acquisitionSource').value = book.acquisitionSource || ''; document.getElementById('edit-review').value = book.review || '';
 
             currentCoverBase64 = book.coverUrl || '';
-            // プレビュー表示用にも同じ生成ロジックを使う
-            const previewContainer = document.getElementById('edit-cover-preview').parentNode;
+            
+            // バグ修正：固定コンテナ(edit-cover-container)の中に要素を注入し、親要素は破壊しない
+            const previewContainer = document.getElementById('edit-cover-container');
             previewContainer.innerHTML = getCoverImgTag(book, "w-20 h-28 object-cover rounded border shadow-sm bg-gray-100") + `
                 <label class="mt-2 text-xs text-blue-600 cursor-pointer border border-blue-600 px-2 py-1 rounded">画像変更<input type="file" id="edit-cover-file" accept="image/*" class="hidden"></label>
             `;
-            // 画像変更イベント再登録
+            
             document.getElementById('edit-cover-file').addEventListener('change', (e) => {
                 const file = e.target.files[0]; if(!file) return;
                 const reader = new FileReader();
@@ -435,7 +413,6 @@
         }
         document.getElementById('btn-delete-book-top').addEventListener('click', executeDelete); document.getElementById('btn-delete-book-bottom').addEventListener('click', executeDelete);
 
-        // グループ管理、CSV入出力処理 (省略せず維持)
         async function renderGroupsManage() {
             const container = document.getElementById('group-list-container'); container.innerHTML = '';
             const groups = await db.groups.orderBy('order').toArray();
