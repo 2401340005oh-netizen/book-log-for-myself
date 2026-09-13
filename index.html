@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- キーワード検索APIが弾かれる原因だった no-referrer は削除しました -->
     <title>My読書記録</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -96,7 +95,6 @@
                 <input type="hidden" id="edit-isbn">
                 
                 <div class="bg-white p-4 rounded-lg shadow-sm flex gap-4 items-start">
-                    <!-- バグ修正：画像を包む固定コンテナを用意 -->
                     <div class="flex flex-col items-center" id="edit-cover-container"></div>
                     
                     <div class="flex-grow space-y-2">
@@ -315,23 +313,87 @@
             if (bookData) showSearchResults([bookData]); else document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
         }
 
+        // ==========================================
+        // 【修正】最強の国会図書館(NDL)検索フォールバック
+        // ==========================================
         async function searchBookByKeyword(keyword) {
             document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">検索中...</p>';
             try {
-                const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(keyword)}&maxResults=10`);
-                const data = await res.json();
-                if (data.items && data.items.length > 0) {
-                    const results = data.items.map(item => {
-                        const info = item.volumeInfo;
-                        let isbn = '';
-                        if(info.industryIdentifiers) { const i13 = info.industryIdentifiers.find(i => i.type === 'ISBN_13'); if(i13) isbn = i13.identifier; }
-                        return {
-                            isbn: isbn, title: info.title || 'タイトル不明', author: info.authors ? info.authors.join(', ') : '',
-                            publisher: info.publisher || '', publishedDate: info.publishedDate || '',
-                            coverUrl: info.imageLinks ? info.imageLinks.thumbnail.replace('http:', 'https:') : ''
-                        };
-                    });
-                    showSearchResults(results);
+                let results = [];
+                
+                // 1. まずはGoogle Booksを試す（制限でブロックされがち）
+                try {
+                    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(keyword)}&maxResults=10`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.items && data.items.length > 0) {
+                            results = data.items.map(item => {
+                                const info = item.volumeInfo;
+                                let isbn = '';
+                                if(info.industryIdentifiers) { 
+                                    const i13 = info.industryIdentifiers.find(i => i.type === 'ISBN_13'); 
+                                    if(i13) isbn = i13.identifier; 
+                                }
+                                return {
+                                    isbn: isbn, title: info.title || 'タイトル不明', author: info.authors ? info.authors.join(', ') : '',
+                                    publisher: info.publisher || '', publishedDate: info.publishedDate || '',
+                                    coverUrl: info.imageLinks ? info.imageLinks.thumbnail.replace('http:', 'https:') : ''
+                                };
+                            });
+                        }
+                    }
+                } catch(e) { console.log('Google Books block', e); }
+
+                // 2. Googleが0件またはブロックされた場合、絶対にブロックされない国会図書館(NDL)に頼る！
+                if (results.length === 0) {
+                    try {
+                        const ndlRes = await fetch(`https://ndlsearch.ndl.go.jp/api/opensearch?any=${encodeURIComponent(keyword)}&cnt=15`);
+                        if (ndlRes.ok) {
+                            const xmlText = await ndlRes.text();
+                            const parser = new DOMParser();
+                            const xml = parser.parseFromString(xmlText, "text/xml");
+                            const items = xml.getElementsByTagName('item');
+                            
+                            for (let i = 0; i < items.length; i++) {
+                                const node = items[i];
+                                let title = '', author = '', publisher = '', pubDate = '', isbn = '';
+                                
+                                // どんなタグ形式でも確実に抜き出すロジック
+                                const allTags = node.getElementsByTagName('*');
+                                for (let j = 0; j < allTags.length; j++) {
+                                    const tName = allTags[j].tagName.toLowerCase();
+                                    const text = allTags[j].textContent.trim();
+                                    
+                                    if (tName === 'title' || tName.includes(':title')) title = title || text;
+                                    if (tName === 'author' || tName === 'dc:creator' || tName.includes('creator')) author = author || text;
+                                    if (tName === 'dc:publisher' || tName.includes('publisher')) publisher = publisher || text;
+                                    if (tName === 'pubdate' || tName === 'dc:date' || tName.includes('date')) pubDate = pubDate || text;
+                                    if (tName === 'dc:identifier' || tName.includes('identifier')) {
+                                        const clean = text.replace(/-/g, '');
+                                        if (clean.startsWith('978') || clean.startsWith('979')) isbn = clean;
+                                    }
+                                }
+                                
+                                // ISBNが存在する「本」だけを結果に追加
+                                if (isbn) {
+                                    results.push({ isbn, title: title || 'タイトル不明', author, publisher, publishedDate: pubDate, coverUrl: '' });
+                                }
+                            }
+                        }
+                    } catch(e) { console.log('NDL Search Error', e); }
+                }
+
+                if (results.length > 0) {
+                    // 同じ本(ISBNが同じ)が複数出ないように綺麗にまとめる
+                    const uniqueResults = [];
+                    const isbnSet = new Set();
+                    for (let r of results) {
+                        if (r.isbn && !isbnSet.has(r.isbn)) {
+                            isbnSet.add(r.isbn);
+                            uniqueResults.push(r);
+                        }
+                    }
+                    showSearchResults(uniqueResults.length > 0 ? uniqueResults : results);
                 } else {
                     document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
                 }
@@ -375,7 +437,6 @@
 
             currentCoverBase64 = book.coverUrl || '';
             
-            // バグ修正：固定コンテナ(edit-cover-container)の中に要素を注入し、親要素は破壊しない
             const previewContainer = document.getElementById('edit-cover-container');
             previewContainer.innerHTML = getCoverImgTag(book, "w-20 h-28 object-cover rounded border shadow-sm bg-gray-100") + `
                 <label class="mt-2 text-xs text-blue-600 cursor-pointer border border-blue-600 px-2 py-1 rounded">画像変更<input type="file" id="edit-cover-file" accept="image/*" class="hidden"></label>
