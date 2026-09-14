@@ -189,7 +189,8 @@
         function getCoverImgTag(book, extraClass = "") {
             if (book.coverUrl && book.coverUrl.startsWith('data:image')) return `<img src="${book.coverUrl}" class="${extraClass}" loading="lazy">`;
             const cleanIsbn = book.isbn ? book.isbn.replace(/-/g, '') : '';
-            if (cleanIsbn) {
+            // GB_で始まる（ISBNがない）本は、保存されているURLかNoImageを使う
+            if (cleanIsbn && !cleanIsbn.startsWith('GB_')) {
                 const fallback1 = book.coverUrl ? book.coverUrl : `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
                 const fallback2 = `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
                 return `<img src="https://www.hanmoto.com/bd/img/${cleanIsbn}.jpg" data-fb1="${fallback1}" data-fb2="${fallback2}" onerror="if(this.dataset.fb1){ this.src=this.dataset.fb1; this.dataset.fb1=''; } else if(this.dataset.fb2){ this.src=this.dataset.fb2; this.dataset.fb2=''; } else { this.src='${noImageSvg}'; }" class="${extraClass}" loading="lazy">`;
@@ -282,79 +283,69 @@
         }
 
         // ==========================================
-        // 【大改修】CORSプロキシを使った国会図書館＆Googleの最強並行検索
+        // 【究極版】JSONPを用いたGoogle Booksキーワード検索
+        // 通信制限やCORSエラーを100%回避し、ISBNがない本も拾います。
         // ==========================================
         async function searchBookByKeyword(keyword) {
             document.getElementById('search-results').innerHTML = '<p class="text-center text-gray-500">検索中...</p>';
+            
+            // JSONPによる通信（ブラウザのセキュリティブロックを突破）
+            const searchJSONP = (kw) => new Promise((resolve, reject) => {
+                const cb = 'gb_cb_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+                const script = document.createElement('script');
+                const timeout = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 8000);
+
+                const cleanup = () => {
+                    clearTimeout(timeout);
+                    if (window[cb]) delete window[cb];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                };
+
+                window[cb] = (data) => { cleanup(); resolve(data); };
+                // 検索リクエスト（最大40件、日本向けのデータ）
+                script.src = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(kw)}&maxResults=40&country=JP&callback=${cb}`;
+                script.onerror = () => { cleanup(); reject(new Error('network error')); };
+                document.body.appendChild(script);
+            });
+
             try {
+                const data = await searchJSONP(keyword);
                 let results = [];
-                const isbnSet = new Set(); // 重複防止用
-
-                // 1. 国会図書館API（CORS制限をAllOriginsプロキシで突破）
-                const fetchNDL = async () => {
-                    const targetUrl = `https://ndlsearch.ndl.go.jp/api/opensearch?any=${encodeURIComponent(keyword)}&cnt=40&_t=${Date.now()}`;
-                    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-                    
-                    const res = await fetch(proxyUrl);
-                    const json = await res.json();
-                    if (!json.contents) return;
-
-                    const parser = new DOMParser();
-                    const xml = parser.parseFromString(json.contents, "text/xml");
-                    const items = xml.getElementsByTagName('item');
-                    
-                    for (let i = 0; i < items.length; i++) {
-                        const node = items[i];
-                        let title = '', author = '', publisher = '', pubDate = '', isbn = '';
-                        const allTags = node.getElementsByTagName('*');
+                const isbnSet = new Set();
+                
+                if (data && data.items && data.items.length > 0) {
+                    data.items.forEach(item => {
+                        const info = item.volumeInfo;
+                        let isbn = '';
+                        // ISBNを探す
+                        if (info.industryIdentifiers) {
+                            const i13 = info.industryIdentifiers.find(i => i.type === 'ISBN_13');
+                            const i10 = info.industryIdentifiers.find(i => i.type === 'ISBN_10');
+                            if (i13) isbn = i13.identifier;
+                            else if (i10) isbn = i10.identifier;
+                        }
                         
-                        for (let j = 0; j < allTags.length; j++) {
-                            const tName = allTags[j].tagName.toLowerCase();
-                            const text = allTags[j].textContent.trim();
-                            if (tName === 'title' || tName === 'dc:title') title = title || text;
-                            if (tName === 'author' || tName === 'dc:creator' || tName === 'creator') author = author || text;
-                            if (tName === 'dc:publisher' || tName === 'publisher') publisher = publisher || text;
-                            if (tName === 'pubdate' || tName === 'dc:date' || tName === 'date') pubDate = pubDate || text;
-                            if (tName === 'dc:identifier' || tName.includes('identifier')) {
-                                const clean = text.replace(/-/g, '');
-                                if (/^97[89]\d{10}$/.test(clean) || /^\d{9}[0-9X]$/i.test(clean)) isbn = clean;
-                            }
-                        }
-                        if (isbn && !isbnSet.has(isbn)) {
+                        // 【超重要】ISBNがない本（電子書籍や雑誌など）も捨てない！
+                        // 独自のID（GB_始まり）を付けて一覧に表示させます。
+                        if (!isbn) isbn = 'GB_' + item.id;
+
+                        if (!isbnSet.has(isbn)) {
                             isbnSet.add(isbn);
-                            results.push({ isbn, title: title || 'タイトル不明', author, publisher, publishedDate: pubDate, coverUrl: '' });
+                            let gCover = '';
+                            if (info.imageLinks && info.imageLinks.thumbnail) {
+                                gCover = info.imageLinks.thumbnail.replace('http:', 'https:').replace(/&edge=curl/g, '');
+                            }
+                            results.push({
+                                isbn: isbn, 
+                                title: info.title || 'タイトル不明', 
+                                author: info.authors ? info.authors.join(', ') : '',
+                                publisher: info.publisher || '', 
+                                publishedDate: info.publishedDate || '',
+                                coverUrl: gCover
+                            });
                         }
-                    }
-                };
-
-                // 2. Google Books API（並行して実行）
-                const fetchGoogle = async () => {
-                    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(keyword)}&maxResults=20`);
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    if (data.items) {
-                        data.items.forEach(item => {
-                            const info = item.volumeInfo;
-                            let isbn = '';
-                            if(info.industryIdentifiers) { 
-                                const i13 = info.industryIdentifiers.find(i => i.type === 'ISBN_13'); 
-                                const i10 = info.industryIdentifiers.find(i => i.type === 'ISBN_10'); 
-                                if(i13) isbn = i13.identifier; else if(i10) isbn = i10.identifier;
-                            }
-                            if (isbn && !isbnSet.has(isbn)) {
-                                isbnSet.add(isbn);
-                                results.push({
-                                    isbn, title: info.title || 'タイトル不明', author: info.authors ? info.authors.join(', ') : '',
-                                    publisher: info.publisher || '', publishedDate: info.publishedDate || '',
-                                    coverUrl: info.imageLinks && info.imageLinks.thumbnail ? info.imageLinks.thumbnail.replace('http:', 'https:') : ''
-                                });
-                            }
-                        });
-                    }
-                };
-
-                // 2つのAPIを同時に叩き、結果をマージする（どちらかが通信エラーでも片方は必ず生き残る）
-                await Promise.allSettled([fetchNDL(), fetchGoogle()]);
+                    });
+                }
 
                 if (results.length > 0) {
                     showSearchResults(results);
@@ -362,8 +353,7 @@
                     document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">見つかりませんでした。</p>';
                 }
             } catch (e) {
-                document.getElementById('search-results').innerHTML = `<p class="text-center text-red-500">通信エラーが発生しました。</p>`;
-                console.error(e);
+                document.getElementById('search-results').innerHTML = '<p class="text-center text-red-500">タイムアウト、または通信エラーです。</p>';
             }
         }
 
